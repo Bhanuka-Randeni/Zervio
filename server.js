@@ -225,8 +225,10 @@ app.post('/api/bills/update', (req, res) => {
     res.status(404).json({ success: false });
 });
 
-app.listen(PORT, () => {
-    console.log(`===========================================================`);
-    console.log(`🚀 RESTAURANT SERVER RUNNING AT: http://localhost:${PORT}`);
-    console.log(`===========================================================`);
-});
+//app.listen(PORT, () => {
+//    console.log(`===========================================================`);
+//    console.log(`🚀 RESTAURANT SERVER RUNNING AT: http://localhost:${PORT}`);
+//    console.log(`===========================================================`);
+//});
+
+module.exports = app
