@@ -1,39 +1,42 @@
 const express = require('express');
-const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
-const QRCode = require('qrcode');
 
 const app = express();
-const PORT = 3000;
 
-// Middleware
+// Middleware - No Multer needed since we aren't writing local files
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Storage configuration for Real Food Photos and Background Wallpapers
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'public/uploads/');
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname);
-    }
-});
-const upload = multer({ storage: storage });
-
-// In-Memory Data Store (Simulating Database)
+// In-Memory Data Store
 let systemConfig = {
     shopName: "Gourmet Kitchen",
-    backgroundImage: ""
+    backgroundImage: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200" // Default Web URL
 };
 
 let categories = ["Appetizers", "Main Course", "Desserts", "Beverages"];
 
 let menu = [
-    { id: 1, name: "Classic Beef Burger", category: "Main Course", price: 12.99, stock: 15, rating: 4.5, ratingsCount: 2, image: "/uploads/default-burger.jpg" },
-    { id: 2, name: "Crispy French Fries", category: "Appetizers", price: 4.99, stock: 4, rating: 4.0, ratingsCount: 1, image: "/uploads/default-fries.jpg" }
+    { 
+        id: 1, 
+        name: "Classic Beef Burger", 
+        category: "Main Course", 
+        price: 12.99, 
+        stock: 15, 
+        rating: 4.5, 
+        ratingsCount: 2, 
+        image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500" // Real Photo URL
+    },
+    { 
+        id: 2, 
+        name: "Crispy French Fries", 
+        category: "Appetizers", 
+        price: 4.99, 
+        stock: 4, 
+        rating: 4.0, 
+        ratingsCount: 1, 
+        image: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=500" // Real Photo URL
+    }
 ];
 
 let tables = ["T1", "T2", "T3", "T4", "T5"];
@@ -42,19 +45,13 @@ let waiterSummons = [];
 let billRequests = [];
 let prepTimeEstimate = "15-20 mins";
 
-// Seed structural image requirements safely if missing
-const defaultDir = path.join(__dirname, 'public', 'uploads');
-if (!fs.existsSync(defaultDir)){
-    fs.mkdirSync(defaultDir, { recursive: true });
-}
-
 // --- API Endpoints ---
 
 // Global Settings
 app.get('/api/config', (req, res) => res.json({ config: systemConfig, categories, tables, prepTimeEstimate }));
-app.post('/api/admin/config', upload.single('wallpaper'), (req, res) => {
+app.post('/api/admin/config', (req, res) => {
     if (req.body.shopName) systemConfig.shopName = req.body.shopName;
-    if (req.file) systemConfig.backgroundImage = `/uploads/${req.file.filename}`;
+    if (req.body.wallpaperUrl) systemConfig.backgroundImage = req.body.wallpaperUrl; // Accept URL text string
     res.redirect('/admin.html');
 });
 
@@ -67,8 +64,8 @@ app.post('/api/categories', (req, res) => {
 
 // Menu Management
 app.get('/api/menu', (req, res) => res.json(menu));
-app.post('/api/admin/menu', upload.single('foodImage'), (req, res) => {
-    const { id, name, category, price, stock } = req.body;
+app.post('/api/admin/menu', (req, res) => {
+    const { id, name, category, price, stock, foodImageUrl } = req.body;
     
     if (id) {
         // Edit Mode
@@ -78,7 +75,7 @@ app.post('/api/admin/menu', upload.single('foodImage'), (req, res) => {
             item.category = category;
             item.price = parseFloat(price);
             item.stock = parseInt(stock);
-            if (req.file) item.image = `/uploads/${req.file.filename}`;
+            if (foodImageUrl) item.image = foodImageUrl;
         }
     } else {
         // Add Mode
@@ -90,7 +87,7 @@ app.post('/api/admin/menu', upload.single('foodImage'), (req, res) => {
             stock: parseInt(stock),
             rating: 0,
             ratingsCount: 0,
-            image: req.file ? `/uploads/${req.file.filename}` : "/uploads/default-food.jpg"
+            image: foodImageUrl || "https://images.unsplash.com/photo-1495521821757-a1efb6729352?w=500"
         };
         menu.push(newItem);
     }
@@ -110,11 +107,12 @@ app.get('/api/qr/generate', async (req, res) => {
     const { table } = req.query;
     if (!table) return res.status(400).send("Table missing");
     
-    // Construct the live scanning URL mapping straight to the customer menu interface
     const host = req.get('host');
-    const qrUrl = `http://${host}/customer.html?table=${table}`;
+    const qrUrl = `https://${host}/customer.html?table=${table}`;
     
     try {
+        // Dynamically load qrcode package only when called to keep serverless cold-starts light
+        const QRCode = require('qrcode');
         const qrImageBuffer = await QRCode.toDataURL(qrUrl);
         res.json({ qrDataUrl: qrImageBuffer, targetUrl: qrUrl });
     } catch (err) {
@@ -140,7 +138,7 @@ app.post('/api/menu/rate', (req, res) => {
 app.get('/api/orders', (req, res) => res.json(orders));
 
 app.post('/api/orders/place', (req, res) => {
-    const { table, items } = req.body; // items: [{id, qty, note}]
+    const { table, items } = req.body;
     
     let orderItems = [];
     for(let cartItem of items) {
@@ -149,7 +147,7 @@ app.post('/api/orders/place', (req, res) => {
             if(menuItem.stock < cartItem.qty) {
                 return res.status(400).json({ success: false, message: `Insufficient stock for ${menuItem.name}` });
             }
-            menuItem.stock -= cartItem.qty; // Decrement current stock count
+            menuItem.stock -= cartItem.qty;
             orderItems.push({
                 id: menuItem.id,
                 name: menuItem.name,
@@ -164,7 +162,7 @@ app.post('/api/orders/place', (req, res) => {
         id: 'ORD-' + Date.now(),
         table,
         items: orderItems,
-        status: 'Pending Cashier', // Workflow state pipeline
+        status: 'Pending Cashier',
         timestamp: new Date()
     };
     orders.push(newOrder);
@@ -188,7 +186,7 @@ app.post('/api/kitchen/time', (req, res) => {
     res.json({ success: true, prepTimeEstimate });
 });
 
-// Waiter Assistance Pipeline (Summon & Bills)
+// Waiter Assistance Pipeline
 app.post('/api/waiter/summon', (req, res) => {
     const { table } = req.body;
     const summon = { id: 'SUM-' + Date.now(), table, status: 'Active' };
@@ -225,10 +223,5 @@ app.post('/api/bills/update', (req, res) => {
     res.status(404).json({ success: false });
 });
 
-//app.listen(PORT, () => {
-//    console.log(`===========================================================`);
-//    console.log(`🚀 RESTAURANT SERVER RUNNING AT: http://localhost:${PORT}`);
-//    console.log(`===========================================================`);
-//});
-
-module.exports = app
+// Export app for Vercel Serverless
+module.exports = app;
