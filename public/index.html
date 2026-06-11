@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menu & Order</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="dynamic-bg" style="min-height: 100vh; background-size: cover; background-position: center;">
+        <div class="navbar">
+            <h1 id="shop-title">Loading...</h1>
+            <div><span class="badge badge-success" id="table-display">Table: --</span></div>
+        </div>
+
+        <div class="container">
+            <div style="display:flex; gap:10px; margin-bottom:1rem; overflow-x:auto; padding-bottom:5px;" id="category-bar"></div>
+            
+            <div style="background:rgba(255,255,255,0.9); padding:1rem; border-radius:8px; margin-bottom:1rem;">
+                <strong>Estimated Kitchen Prep Time: </strong><span id="prep-time">--</span>
+                <div style="margin-top: 10px;">
+                    <button class="btn btn-warning" onclick="summonWaiter()">🔔 Summon Waiter</button>
+                    <button class="btn btn-success" onclick="requestBill()">💵 Request Bill</button>
+                </div>
+            </div>
+
+            <h2>Our Menu</h2>
+            <div class="grid" id="menu-grid"></div>
+
+            <hr>
+            <h2>Your Order Bucket</h2>
+            <div class="card" id="cart-card">
+                <div id="cart-items">Your bucket is empty.</div>
+                <div style="margin-top:1rem; font-size:1.2rem; font-weight:bold;" id="cart-total">Total: $0.00</div>
+                <button class="btn btn-success" style="width:100%; margin-top:1rem;" onclick="placeOrder()">🚀 Click to Order Selections</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const tableNumber = urlParams.get('table') || 'T1';
+        let cart = [];
+        let menuData = [];
+
+        document.getElementById('table-display').innerText = `Table: ${tableNumber}`;
+
+        async function loadData() {
+            const configRes = await fetch('/api/config');
+            const configData = await configRes.json();
+            document.getElementById('shop-title').innerText = configData.config.shopName;
+            if(configData.config.backgroundImage) {
+                document.getElementById('dynamic-bg').style.backgroundImage = `url('${configData.config.backgroundImage}')`;
+            }
+            document.getElementById('prep-time').innerText = configData.prepTimeEstimate;
+
+            // Categories
+            let catBar = document.getElementById('category-bar');
+            catBar.innerHTML = `<button class="btn btn-primary" onclick="filterMenu('All')">All</button>`;
+            configData.categories.forEach(cat => {
+                catBar.innerHTML += `<button class="btn btn-primary" style="margin-left:5px;" onclick="filterMenu('${cat}')">${cat}</button>`;
+            });
+
+            // Menu
+            const menuRes = await fetch('/api/menu');
+            menuData = await menuRes.json();
+            renderMenu(menuData);
+        }
+
+        function renderMenu(items) {
+            const grid = document.getElementById('menu-grid');
+            grid.innerHTML = '';
+            items.forEach(item => {
+                let stockWarning = item.stock < 5 ? `<span class="badge badge-danger">Only ${item.stock} LEFT</span>` : '';
+                let ratingDisplay = '★'.repeat(Math.round(item.rating)) + '☆'.repeat(5 - Math.round(item.rating));
+                
+                grid.innerHTML += `
+                    <div class="card" style="background:rgba(255,255,255,0.95)">
+                        <img src="${item.image}" style="width:100%; height:180px; object-fit:cover; border-radius:4px;">
+                        <h3>${item.name} ${stockWarning}</h3>
+                        <p>Category: ${item.category} | <strong>$${item.price.toFixed(2)}</strong></p>
+                        <p class="star-rating">Rating: ${ratingDisplay} (${item.rating || 0}/5)</p>
+                        <div style="margin-bottom:10px;">
+                           <small>Rate this item: </small>
+                           <select onchange="rateItem(${item.id}, this.value); this.value=''">
+                              <option value="">-- Choose --</option>
+                              <option value="5">5 Stars</option>
+                              <option value="4">4 Stars</option>
+                              <option value="3">3 Stars</option>
+                              <option value="2">2 Stars</option>
+                              <option value="1">1 Star</option>
+                           </select>
+                        </div>
+                        <div class="form-group">
+                            <input type="text" placeholder="Special Notes (Spicy, Veg, etc.)" id="note-${item.id}">
+                        </div>
+                        <button class="btn btn-primary" onclick="addToCart(${item.id})">Add to Bucket</button>
+                    </div>
+                `;
+            });
+        }
+
+        function filterMenu(category) {
+            if(category === 'All') renderMenu(menuData);
+            else renderMenu(menuData.filter(m => m.category === category));
+        }
+
+        function addToCart(id) {
+            const item = menuData.find(m => m.id === id);
+            const note = document.getElementById(`note-${id}`).value;
+            const existing = cart.find(c => c.id === id && c.note === note);
+            
+            if(existing) {
+                existing.qty++;
+            } else {
+                cart.push({ id: item.id, name: item.name, price: item.price, qty: 1, note: note });
+            }
+            document.getElementById(`note-${id}`).value = '';
+            renderCart();
+        }
+
+        function renderCart() {
+            const container = document.getElementById('cart-items');
+            if(cart.length === 0) {
+                container.innerHTML = "Your bucket is empty.";
+                return;
+            }
+            container.innerHTML = '';
+            let total = 0;
+            cart.forEach((c, index) => {
+                total += (c.price * c.qty);
+                container.innerHTML += `
+                    <div style="display:flex; justify-content:space-between; margin-bottom:5px; border-bottom:1px solid #ddd; padding-bottom:5px;">
+                        <div>
+                            <strong>${c.name} (x${c.qty})</strong><br>
+                            <small style="color:var(--warning)">Note: ${c.note || 'None'}</small>
+                        </div>
+                        <div>
+                            $${(c.price * c.qty).toFixed(2)} 
+                            <button class="btn btn-danger" style="padding:2px 5px;" onclick="cart.splice(${index},1); renderCart();">X</button>
+                        </div>
+                    </div>
+                `;
+            });
+            document.getElementById('cart-total').innerText = `Total: $${total.toFixed(2)}`;
+        }
+
+        async function placeOrder() {
+            if(cart.length === 0) return alert("Bucket is empty");
+            const res = await fetch('/api/orders/place', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ table: tableNumber, items: cart })
+            });
+            const data = await res.json();
+            if(data.success) {
+                alert("Order Sent to Cashier for Confirmation!");
+                cart = [];
+                renderCart();
+                loadData();
+            } else {
+                alert("Error placing order: " + data.message);
+            }
+        }
+
+        async function rateItem(itemId, rating) {
+            if(!rating) return;
+            await fetch('/api/menu/rate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ itemId, rating })
+            });
+            loadData();
+        }
+
+        async function summonWaiter() {
+            await fetch('/api/waiter/summon', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ table: tableNumber })
+            });
+            alert("Waiter has been summoned to your table.");
+        }
+
+        async function requestBill() {
+            await fetch('/api/bill/request', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ table: tableNumber })
+            });
+            alert("Bill requested. Cashier and waiter have been notified!");
+        }
+
+        setInterval(loadData, 5000); // Live poll updates every 5s
+        window.onload = loadData;
+    </script>
+</body>
+</html>

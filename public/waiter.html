@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waiter Service Station</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="navbar">
+        <h1>Waiter Service Terminal</h1>
+        <div>Identity Track ID: <input type="text" id="waiter-id" value="Waiter_Alpha" style="width:90px;"></div>
+    </div>
+
+    <div class="container">
+        <div class="card" style="background:#fef08a;">
+            <h2>Floor Service Walk-in Order Entry</h2>
+            <div class="form-group">
+                <label>Target Table</label>
+                <select id="manual-table-select"></select>
+            </div>
+            <div class="form-group">
+                <label>Select Food Item</label>
+                <select id="manual-food-select"></select>
+            </div>
+            <div class="form-group">
+                <label>Quantity</label>
+                <input type="number" id="manual-qty" value="1" min="1">
+            </div>
+            <div class="form-group">
+                <label>Special Instructions Note</label>
+                <input type="text" id="manual-note" placeholder="Spicy, Veg, etc.">
+            </div>
+            <button class="btn btn-dark" onclick="addManualOrder()">Submit Order to System Loop</button>
+            <button class="btn btn-danger" onclick="triggerManualBill()">Verbal Bill Request</button>
+        </div>
+
+        <h2>Active Customer Summons Alerts</h2>
+        <div id="summons-box"></div>
+
+        <h2>Food Ready to Serve</h2>
+        <div class="grid" id="serve-grid"></div>
+
+        <h2>Bills Ready for Payment Processing Delivery</h2>
+        <div class="grid" id="bills-grid"></div>
+    </div>
+
+    <script>
+        function runNotificationChime() {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(600, ctx.currentTime);
+            osc.connect(ctx.destination);
+            osc.start(); osc.stop(ctx.currentTime + 0.15);
+        }
+
+        let trackingSummonsState = 0;
+
+        async function refreshWaiterStation() {
+            const waiterId = document.getElementById('waiter-id').value;
+            
+            // Populating initialization lists inside selectors safely
+            const configRes = await fetch('/api/config');
+            const cfg = await configRes.json();
+            const tSel = document.getElementById('manual-table-select');
+            if(tSel.children.length === 0) {
+                cfg.tables.forEach(t => tSel.innerHTML += `<option value="${t}">${t}</option>`);
+            }
+
+            const menuRes = await fetch('/api/menu');
+            const menuData = await menuRes.json();
+            const fSel = document.getElementById('manual-food-select');
+            if(fSel.children.length === 0) {
+                menuData.forEach(f => fSel.innerHTML += `<option value="${f.id}">${f.name} - $${f.price}</option>`);
+            }
+
+            // Read assistance requests
+            const sumRes = await fetch('/api/waiter/summons');
+            const summons = await sumRes.json();
+            const sBox = document.getElementById('summons-box');
+            sBox.innerHTML = '';
+            
+            if(summons.length > trackingSummonsState) runNotificationChime();
+            trackingSummonsState = summons.length;
+
+            summons.forEach(s => {
+                sBox.innerHTML += `
+                    <div class="card" style="background:#ffedd5; border:1px solid var(--warning); display:flex; justify-content:space-between; align-items:center;">
+                        <strong>📢 TABLE ${s.table} needs physical assistance at location!</strong>
+                        <button class="btn btn-warning" onclick="clearSummon('${s.id}')">Respond & Clear</button>
+                    </div>
+                `;
+            });
+
+            // Read order parameters
+            const ordRes = await fetch('/api/orders');
+            const orders = await ordRes.json();
+            const serveGrid = document.getElementById('serve-grid');
+            serveGrid.innerHTML = '';
+
+            orders.forEach(o => {
+                if(o.status === 'Prepared') {
+                    serveGrid.innerHTML += `
+                        <div class="card" style="border-left: 5px solid var(--success)">
+                            <h3>Table: ${o.table}</h3>
+                            <p>Ready for distribution tracking.</p>
+                            <button class="btn btn-primary" onclick="claimOrder('${o.id}', 'Serving In Progress')">Accept & Serve</button>
+                        </div>
+                    `;
+                } else if (o.status === 'Serving In Progress' && o.waiterId === waiterId) {
+                    serveGrid.innerHTML += `
+                        <div class="card" style="background: #e0f2fe;">
+                            <h3>Table: ${o.table} (Assigned to You)</h3>
+                            <button class="btn btn-success" onclick="claimOrder('${o.id}', 'Served Successfully')">Mark as Served Complete</button>
+                        </div>
+                    `;
+                }
+            });
+
+            // Read bill states
+            const billRes = await fetch('/api/bills');
+            const bills = await billRes.json();
+            const billsGrid = document.getElementById('bills-grid');
+            billsGrid.innerHTML = '';
+
+            bills.forEach(b => {
+                if(b.status === 'Bill Ready') {
+                    billsGrid.innerHTML += `
+                        <div class="card" style="border-left: 5px solid #a855f7">
+                            <h3>Deliver Bill to Table: ${b.table}</h3>
+                            <button class="btn btn-primary" onclick="claimBill('${b.id}', 'Delivering Bill')">Accept to Take Bill</button>
+                        </div>
+                    `;
+                } else if(b.status === 'Delivering Bill' && b.waiterId === waiterId) {
+                    billsGrid.innerHTML += `
+                        <div class="card" style="background:#faf5ff;">
+                            <h3>Table: ${b.table} (Handing Bill)</h3>
+                            <button class="btn btn-success" onclick="claimBill('${b.id}', 'Settled')">Confirm Paid & Table Free</button>
+                        </div>
+                    `;
+                }
+            });
+        }
+
+        async function addManualOrder() {
+            const table = document.getElementById('manual-table-select').value;
+            const id = parseInt(document.getElementById('manual-food-select').value);
+            const qty = parseInt(document.getElementById('manual-qty').value);
+            const note = document.getElementById('manual-note').value;
+
+            await fetch('/api/orders/place', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ table, items: [{id, qty, note}] })
+            });
+            alert("Walk-in order processed into loops successfully!");
+            refreshWaiterStation();
+        }
+
+        async function triggerManualBill() {
+            const table = document.getElementById('manual-table-select').value;
+            await fetch('/api/bill/request', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ table })
+            });
+            alert("Verbal bill loop registered into cashier framework queue.");
+        }
+
+        async function clearSummon(id) {
+            await fetch('/api/waiter/summon/clear', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id }) });
+            refreshWaiterStation();
+        }
+
+        async function claimOrder(orderId, status) {
+            const waiterId = document.getElementById('waiter-id').value;
+            await fetch('/api/orders/update-status', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ orderId, status, waiterId })
+            });
+            refreshWaiterStation();
+        }
+
+        async function claimBill(id, status) {
+            const waiterId = document.getElementById('waiter-id').value;
+            await fetch('/api/bills/update', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ id, status, waiterId })
+            });
+            refreshWaiterStation();
+        }
+
+        setInterval(refreshWaiterStation, 3000);
+        window.onload = refreshWaiterStation;
+    </script>
+</body>
+</html>

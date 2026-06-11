@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kitchen Monitor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="navbar">
+        <h1>Kitchen Order Feed Monitor</h1>
+        <div>
+            <strong>Est. Rush Time:</strong>
+            <input type="text" id="prep-time-input" style="width:100px; padding:3px;" onchange="updateKitchenTime(this.value)">
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="grid" id="kitchen-grid"></div>
+    </div>
+
+    <script>
+        async function refreshKitchen() {
+            const configRes = await fetch('/api/config');
+            const configData = await configRes.json();
+            document.getElementById('prep-time-input').value = configData.prepTimeEstimate;
+
+            const res = await fetch('/api/orders');
+            const orders = await res.json();
+            
+            const grid = document.getElementById('kitchen-grid');
+            grid.innerHTML = '';
+
+            orders.filter(o => o.status === 'Confirmed by Cashier').forEach(order => {
+                let itemsHtml = order.items.map(i => `<li><strong>${i.name} x ${i.qty}</strong> <br><span style="color:var(--danger)">[Note: ${i.note || 'None'}]</span></li>`).join('');
+                grid.innerHTML += `
+                    <div class="card" style="border-top:8px solid var(--warning);">
+                        <h3>Table: ${order.table}</h3>
+                        <ul>${itemsHtml}</ul>
+                        <button class="btn btn-success" style="width:100%;" onclick="completeOrder('${order.id}')">Cooking Complete ✔</button>
+                    </div>
+                `;
+            });
+        }
+
+        async function updateKitchenTime(val) {
+            await fetch('/api/kitchen/time', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ time: val })
+            });
+        }
+
+        async function completeOrder(orderId) {
+            await fetch('/api/orders/update-status', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ orderId, status: 'Prepared' })
+            });
+            refreshKitchen();
+        }
+
+        setInterval(refreshKitchen, 3000);
+        window.onload = refreshKitchen;
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kitchen Monitor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="navbar">
+        <h1>Kitchen Order Feed Monitor</h1>
+        <div>
+            <strong>Est. Rush Time:</strong>
+            <input type="text" id="prep-time-input" style="width:100px; padding:3px;" onchange="updateKitchenTime(this.value)">
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="grid" id="kitchen-grid"></div>
+    </div>
+
+    <script>
+        async function refreshKitchen() {
+            const configRes = await fetch('/api/config');
+            const configData = await configRes.json();
+            document.getElementById('prep-time-input').value = configData.prepTimeEstimate;
+
+            const res = await fetch('/api/orders');
+            const orders = await res.json();
+            
+            const grid = document.getElementById('kitchen-grid');
+            grid.innerHTML = '';
+
+            orders.filter(o => o.status === 'Confirmed by Cashier').forEach(order => {
+                let itemsHtml = order.items.map(i => `<li><strong>${i.name} x ${i.qty}</strong> <br><span style="color:var(--danger)">[Note: ${i.note || 'None'}]</span></li>`).join('');
+                grid.innerHTML += `
+                    <div class="card" style="border-top:8px solid var(--warning);">
+                        <h3>Table: ${order.table}</h3>
+                        <ul>${itemsHtml}</ul>
+                        <button class="btn btn-success" style="width:100%;" onclick="completeOrder('${order.id}')">Cooking Complete ✔</button>
+                    </div>
+                `;
+            });
+        }
+
+        async function updateKitchenTime(val) {
+            await fetch('/api/kitchen/time', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ time: val })
+            });
+        }
+
+        async function completeOrder(orderId) {
+            await fetch('/api/orders/update-status', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ orderId, status: 'Prepared' })
+            });
+            refreshKitchen();
+        }
+
+        setInterval(refreshKitchen, 3000);
+        window.onload = refreshKitchen;
+    </script>
+</body>
+</html>

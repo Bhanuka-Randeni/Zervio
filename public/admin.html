@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="navbar">
+        <h1>Admin Control Panel</h1>
+        <a href="/customer.html" class="btn btn-success" target="_blank">View Customer End</a>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h2>Shop Identity & Background Customization</h2>
+            <form action="/api/admin/config" method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label>Shop Name</label>
+                    <input type="text" name="shopName" id="shopNameField" required>
+                </div>
+                <div class="form-group">
+                    <label>Background Wallpaper File (Real Photo)</label>
+                    <input type="file" name="wallpaper" accept="image/*">
+                </div>
+                <button type="submit" class="btn btn-primary">Save Configuration</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Add Food Category</h2>
+            <div class="form-group">
+                <input type="text" id="new-cat-name" placeholder="Category Name (e.g., Sea Food)">
+                <button class="btn btn-success" style="margin-top:10px;" onclick="addCategory()">Save Category</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Add / Update Food Item</h2>
+            <form action="/api/admin/menu" method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="id" id="food-id">
+                <div class="form-group">
+                    <label>Food Item Name</label>
+                    <input type="text" name="name" id="food-name" required>
+                </div>
+                <div class="form-group">
+                    <label>Category</label>
+                    <select name="category" id="food-category" required></select>
+                </div>
+                <div class="form-group">
+                    <label>Price ($)</label>
+                    <input type="number" step="0.01" name="price" id="food-price" required>
+                </div>
+                <div class="form-group">
+                    <label>Stock Qty Available</label>
+                    <input type="number" name="stock" id="food-stock" required>
+                </div>
+                <div class="form-group">
+                    <label>Food Image File (Real Photo)</label>
+                    <input type="file" name="foodImage" accept="image/*">
+                </div>
+                <button type="submit" class="btn btn-success">Save Food Item</button>
+                <button type="button" class="btn btn-danger" onclick="resetFoodForm()">Reset Form</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Current Menu Inventory</h2>
+            <table style="width:100%; border-collapse: collapse;" border="1" cellpadding="8" id="menu-table">
+                <thead>
+                    <tr><th>Image</th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Action</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Tables & QR Code Generator Engine</h2>
+            <form action="/api/admin/tables" method="POST" style="margin-bottom:2rem;">
+                <div class="form-group">
+                    <label>Create New Table Identifier</label>
+                    <input type="text" name="tableName" placeholder="e.g., T6" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Add New Table</button>
+            </form>
+
+            <div class="grid" id="qr-grid"></div>
+        </div>
+    </div>
+
+    <script>
+        async function loadAdminData() {
+            const configRes = await fetch('/api/config');
+            const data = await configRes.json();
+            
+            document.getElementById('shopNameField').value = data.config.shopName;
+            
+            // Render Category Dropdowns
+            const catSelect = document.getElementById('food-category');
+            catSelect.innerHTML = '';
+            data.categories.forEach(cat => {
+                catSelect.innerHTML += `<option value="${cat}">${cat}</option>`;
+            });
+
+            // Handle QR Render Loops
+            const qrGrid = document.getElementById('qr-grid');
+            qrGrid.innerHTML = '';
+            for(let table of data.tables) {
+                const qrRes = await fetch(`/api/qr/generate?table=${table}`);
+                const qrData = await qrRes.json();
+                
+                qrGrid.innerHTML += `
+                    <div class="card" style="text-align:center;">
+                        <div style="border: 2px solid #333; padding: 10px; display: inline-block; background: white;">
+                            <div style="font-weight:bold; font-size:1.4rem; margin-bottom:5px;">${table}</div>
+                            <img src="${qrData.qrDataUrl}" style="width:150px; height:150px;"><br>
+                            <small>Scan to Order</small>
+                        </div>
+                        <p><a href="${qrData.targetUrl}" target="_blank" class="btn btn-primary" style="font-size:0.8rem;">Open Route</a></p>
+                    </div>
+                `;
+            }
+
+            // Render Menu Records
+            const menuRes = await fetch('/api/menu');
+            const menuItems = await menuRes.json();
+            const tableBody = document.querySelector('#menu-table tbody');
+            tableBody.innerHTML = '';
+            menuItems.forEach(item => {
+                tableBody.innerHTML += `
+                    <tr>
+                        <td><img src="${item.image}" style="width:50px; hieght:50px; object-fit:cover;"></td>
+                        <td>${item.name}</td>
+                        <td>${item.category}</td>
+                        <td>$${item.price.toFixed(2)}</td>
+                        <td>${item.stock}</td>
+                        <td><button class="btn btn-warning" onclick="editFoodItem(${JSON.stringify(item).replace(/"/g, '&quot;')})">Edit</button></td>
+                    </tr>
+                `;
+            });
+        }
+
+        async function addCategory() {
+            const name = document.getElementById('new-cat-name').value;
+            if(!name) return;
+            await fetch('/api/categories', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ name })
+            });
+            document.getElementById('new-cat-name').value = '';
+            loadAdminData();
+        }
+
+        function editFoodItem(item) {
+            document.getElementById('food-id').value = item.id;
+            document.getElementById('food-name').value = item.name;
+            document.getElementById('food-category').value = item.category;
+            document.getElementById('food-price').value = item.price;
+            document.getElementById('food-stock').value = item.stock;
+        }
+
+        function resetFoodForm() {
+            document.getElementById('food-id').value = '';
+            document.getElementById('food-name').value = '';
+            document.getElementById('food-price').value = '';
+            document.getElementById('food-stock').value = '';
+        }
+
+        window.onload = loadAdminData;
+    </script>
+</body>
+</html>

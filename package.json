@@ -1,0 +1,25 @@
+{
+  "name": "qr-restaurant-ordering-system",
+  "version": "1.0.0",
+  "description": "Comprehensive QR Menu, Ordering, and Multi-Role Restaurant Management System",
+  "homepage": "https://github.com/Bhanuka-Randeni/Zervio#readme",
+  "bugs": {
+    "url": "https://github.com/Bhanuka-Randeni/Zervio/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bhanuka-Randeni/Zervio.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "qrcode": "^1.5.3"
+  }
+}
