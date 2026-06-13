@@ -1,40 +1,55 @@
+/* Core Variables & Reset */
 :root {
-    --primary: #2563eb;
-    --success: #16a34a;
-    --warning: #ca8a04;
-    --danger: #dc2626;
-    --dark: #1f2937;
-    --light: #f3f4f6;
+    --primary: #FF6B6B;
+    --primary-dark: #E85D5D;
+    --background: #F7F9FC;
+    --surface: #FFFFFF;
+    --text-main: #2D3436;
+    --text-muted: #636E72;
+    --success: #00B894;
+    --warning: #FDCB6E;
+    --danger: #D63031;
+    --radius: 12px;
+    --shadow: 0 4px 6px rgba(0,0,0,0.05);
 }
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    margin: 0; padding: 0; background-color: var(--light); color: var(--dark);
-}
-.navbar {
-    background-color: var(--dark); color: white; padding: 1rem;
-    display: flex; justify-content: space-between; align-items: center;
-}
-.container { padding: 1rem; max-width: 1200px; margin: 0 auto; }
-.card {
-    background: white; border-radius: 8px; padding: 1rem;
-    margin-bottom: 1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
-.btn {
-    padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer;
-    font-weight: bold; text-decoration: none; display: inline-block;
+
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+
+body { background-color: var(--background); color: var(--text-main); line-height: 1.6; }
+
+/* Views & State Management */
+.view { display: none; padding: 20px; animation: fadeIn 0.3s ease; }
+.view.active { display: block; }
+.hidden { display: none !important; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Typography & Components */
+.app-header { background: var(--surface); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow); position: sticky; top: 0; z-index: 100; }
+.logo { font-weight: 800; font-size: 1.2rem; color: var(--primary); }
+
+.btn-primary, .btn-secondary {
+    padding: 12px 24px; border: none; border-radius: var(--radius); font-weight: 600; cursor: pointer; width: 100%; transition: 0.2s;
 }
 .btn-primary { background: var(--primary); color: white; }
-.btn-success { background: var(--success); color: white; }
-.btn-warning { background: var(--warning); color: white; }
-.btn-danger { background: var(--danger); color: white; }
-.badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.85rem; font-weight: bold; }
-.badge-danger { background: #fee2e2; color: var(--danger); }
-.badge-warning { background: #fef9c3; color: var(--warning); }
-.badge-success { background: #dcfce7; color: var(--success); }
-.form-group { margin-bottom: 1rem; }
-.form-group label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
-.form-group input, .form-group select, .form-group textarea {
-    width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
-}
-.star-rating { color: #f59e0b; font-size: 1.2rem; cursor: pointer; }
+.btn-primary:active { background: var(--primary-dark); }
+.btn-secondary { background: #eee; color: var(--text-main); }
+
+/* Customer Menu Grid (Mobile First) */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; margin-top: 20px; }
+.menu-card { background: var(--surface); border-radius: var(--radius); padding: 10px; box-shadow: var(--shadow); display: flex; flex-direction: column; }
+.menu-card img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 10px; }
+.menu-price { font-weight: bold; color: var(--success); }
+.low-stock { color: var(--danger); font-size: 0.8rem; font-weight: bold; }
+
+/* Floating Action Button (Cart) */
+.fab { position: fixed; bottom: 20px; right: 20px; background: var(--primary); color: white; border: none; border-radius: 50%; width: 60px; height: 60px; font-size: 1.5rem; box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4); z-index: 90; }
+
+/* Kitchen Board (Tablet Optimized) */
+.board { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+.ticket { background: var(--warning); padding: 15px; border-radius: var(--radius); color: #000; }
+.ticket.preparing { background: var(--primary); color: #fff; }
+
+/* Modals */
+.modal { border: none; border-radius: var(--radius); padding: 20px; max-width: 400px; width: 90%; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+.modal::backdrop { background: rgba(0,0,0,0.5); }
